@@ -134,6 +134,22 @@ func (h *Handler) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	_ = h.db.QueryRow(`SELECT total_requests, blocked_ua, blocked_rpm, checkins, new_users, new_bans FROM daily_stats WHERE date=?`, today).
 		Scan(&stats.TotalRequests, &stats.BlockedUA, &stats.BlockedRPM, &stats.Checkins, &stats.NewUsers, &stats.NewBans)
 
+	if adminToken := h.settings.GetString("newapi_admin_token"); adminToken != "" {
+		if remoteUsers, err := h.fetchAllNewAPIUsers(r.Context(), adminToken); err == nil {
+			totalUsers = len(remoteUsers)
+			activeBans = 0
+			stats.NewUsers = 0
+			for _, user := range remoteUsers {
+				if user.Status == 2 {
+					activeBans++
+				}
+				if user.CreatedAt > 0 && time.Unix(user.CreatedAt, 0).Format("2006-01-02") == today {
+					stats.NewUsers++
+				}
+			}
+		}
+	}
+
 	webutil.WriteJSON(w, http.StatusOK, map[string]any{
 		"today":           stats,
 		"total_users":     totalUsers,

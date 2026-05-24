@@ -262,7 +262,7 @@ func (c *Client) CreateUser(ctx context.Context, adminToken, username, password 
 }
 
 func (c *Client) ListUsers(ctx context.Context, adminToken string, page, pageSize int) ([]User, int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/api/user/?p=%d&page_size=%d", c.BaseURL(), page, pageSize), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/api/user/?p=%d&page_size=%d", c.BaseURL(), normalizePageParam(page), pageSize), nil)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -324,7 +324,7 @@ func (c *Client) GetUser(ctx context.Context, adminToken string, userID int64) (
 }
 
 func (c *Client) SearchUsers(ctx context.Context, adminToken, keyword string, page, pageSize int) ([]User, int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/api/user/search?keyword=%s&p=%d&page_size=%d", c.BaseURL(), urlQueryEscape(keyword), page, pageSize), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/api/user/search?keyword=%s&p=%d&page_size=%d", c.BaseURL(), urlQueryEscape(keyword), normalizePageParam(page), pageSize), nil)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -394,4 +394,11 @@ func urlQueryEscape(value string) string {
 		"#", "%23",
 	)
 	return replacer.Replace(value)
+}
+
+func normalizePageParam(page int) int {
+	if page <= 1 {
+		return 0
+	}
+	return page - 1
 }

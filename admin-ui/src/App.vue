@@ -1,78 +1,32 @@
 <template>
-  <n-config-provider :theme="darkTheme" :theme-overrides="themeOverrides">
+  <n-config-provider :theme="naiveTheme" :theme-overrides="themeOverrides">
     <template v-if="!auth.token">
       <div class="login-shell">
         <div class="login-panel">
-          <section class="frame login-hero">
-            <div>
-              <div class="hero-eyebrow">公益站管理员控制台</div>
-              <h1 class="hero-title">Guard 高级控制台</h1>
-              <p class="hero-copy">
-                面向公益站管理员的高密度值守界面。这里不追求花哨，而是把用户、封禁、白名单、日志和代理设置收拢到同一处，方便快速判断和快速处置。
-              </p>
-            </div>
-
-            <div class="metric-row">
-              <article class="metric-tile">
-                <span>封禁口径</span>
-                <strong>status = 2</strong>
-              </article>
-              <article class="metric-tile">
-                <span>限速口径</span>
-                <strong>用户级 RPM</strong>
-              </article>
-              <article class="metric-tile">
-                <span>代理目标</span>
-                <strong>可配置</strong>
-              </article>
-            </div>
-
-            <div class="signal-grid">
-              <article class="signal-card">
-                <div class="capsule-label">核心原则</div>
-                <div class="signal-value">New API 负责用户真相源</div>
-                <div class="signal-note">Guard 只补充违规原因、时间、UA、IP 和操作上下文。</div>
-              </article>
-              <article class="signal-card">
-                <div class="capsule-label">值守方向</div>
-                <div class="signal-value">冷静 / 精准 / 克制</div>
-                <div class="signal-note">适合长时间值守和快速交接，不做模板味很重的通用后台。</div>
-              </article>
-            </div>
-          </section>
-
           <section class="frame login-card">
             <div>
               <div class="panel-label">登录</div>
-              <h2 class="panel-title">进入控制台</h2>
-              <p class="panel-copy">输入管理员密码后即可接通所有 `/guard/api/*` 后端接口。</p>
+              <h2 class="panel-title">进入 Guard 控制台</h2>
             </div>
 
-            <n-form @submit.prevent>
-              <n-form-item label="管理员密码">
-                <n-input
-                  v-model:value="login.password"
+            <form class="login-form" @submit.prevent="submitLogin">
+              <label class="login-field" for="login-password">
+                <span class="login-field-label">管理员密码</span>
+                <input
+                  id="login-password"
+                  v-model="login.password"
+                  class="login-password-field"
                   type="password"
-                  show-password-on="click"
-                  placeholder="请输入控制台密码"
-                  @keyup.enter="submitLogin"
+                  placeholder="请输入管理员密码"
+                  autocomplete="current-password"
                 />
-              </n-form-item>
-            </n-form>
+              </label>
+            </form>
 
-            <div class="signal-grid compact-signals">
-              <article class="signal-card">
-                <div class="capsule-label">后端兼容</div>
-                <div class="signal-note">继续使用现有 `/guard/admin/` 和 `/guard/api/*`，无需改后端路径。</div>
-              </article>
-              <article class="signal-card">
-                <div class="capsule-label">会话提示</div>
-                <div class="signal-note">{{ login.notice || "登录后会保留本地会话，并在手动退出时通知后端失效。" }}</div>
-              </article>
-            </div>
+            <p v-if="login.notice" class="login-notice">{{ login.notice }}</p>
 
             <div class="auth-row">
-              <n-button type="primary" size="large" :loading="authLoading" @click="submitLogin">登录控制台</n-button>
+              <n-button type="primary" size="large" :loading="authLoading" @click="submitLogin">进入 Guard 控制台</n-button>
             </div>
           </section>
         </div>
@@ -81,12 +35,16 @@
 
     <template v-else>
       <div class="tool-shell">
-        <div class="tool-layout">
-          <aside class="nav-frame">
-            <div class="brand-stack">
-              <div class="hero-eyebrow">公益站守卫层</div>
+        <div class="tool-layout" :class="{ collapsed: sidebarCollapsed }">
+          <aside class="nav-frame" :class="{ collapsed: sidebarCollapsed }">
+            <button class="nav-collapse" type="button" :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'" @click="sidebarCollapsed = !sidebarCollapsed">
+              {{ sidebarCollapsed ? ">" : "<" }}
+            </button>
+
+            <div class="brand-stack" :class="{ collapsed: sidebarCollapsed }">
+              <div v-if="!sidebarCollapsed" class="hero-eyebrow">公益站守卫层</div>
               <div class="brand-title">Guard</div>
-              <div class="brand-chip-row">
+              <div v-if="!sidebarCollapsed" class="brand-chip-row">
                 <div class="brand-chip"><strong>{{ dashboard.active_bans || 0 }}</strong> 当前封禁</div>
                 <div class="brand-chip"><strong>{{ dashboard.whitelist_count || 0 }}</strong> 白名单</div>
               </div>
@@ -97,23 +55,52 @@
                 v-for="item in navItems"
                 :key="item.key"
                 class="nav-button"
-                :class="{ active: activeView === item.key }"
+                :class="{ active: activeView === item.key, collapsed: sidebarCollapsed }"
                 @click="openView(item.key)"
               >
                 <div>
                   <strong>{{ item.label }}</strong>
-                  <span>{{ item.hint }}</span>
+                  <span v-if="!sidebarCollapsed">{{ item.hint }}</span>
                 </div>
-                <div class="nav-count">{{ navCount(item.key) }}</div>
+                <div v-if="!sidebarCollapsed" class="nav-count">{{ navCount(item.key) }}</div>
               </button>
             </nav>
 
-            <div class="nav-foot">
-              <div class="capsule-label">同步口径</div>
-              <p class="muted">
-                封禁以 <span class="mono">status = 2</span> 为准，RPM 以用户为维度累计，代理目标统一取自
-                <span class="mono">newapi_base_url</span>。
-              </p>
+            <div class="theme-switch" :class="{ collapsed: sidebarCollapsed }">
+              <div class="theme-segment" :aria-label="`主题模式，当前${currentThemeLabel}`" role="group">
+                <button
+                  v-for="option in themeOptions"
+                  :key="option.value"
+                  class="theme-option theme-option-icon"
+                  :class="{ active: themeMode === option.value }"
+                  type="button"
+                  :aria-label="`切换到${option.label}`"
+                  :aria-pressed="themeMode === option.value"
+                  :title="option.label"
+                  @click="themeMode = option.value"
+                >
+                  <svg v-if="option.value === 'system'" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="4" y="5" width="16" height="11" rx="2.5" />
+                    <path d="M9 19h6" />
+                    <path d="M12 16v3" />
+                  </svg>
+                  <svg v-else-if="option.value === 'light'" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="4.2" />
+                    <path d="M12 2.5v3" />
+                    <path d="M12 18.5v3" />
+                    <path d="M21.5 12h-3" />
+                    <path d="M5.5 12h-3" />
+                    <path d="M18.7 5.3l-2.1 2.1" />
+                    <path d="M7.4 16.6l-2.1 2.1" />
+                    <path d="M18.7 18.7l-2.1-2.1" />
+                    <path d="M7.4 7.4L5.3 5.3" />
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M19 14.8A7.2 7.2 0 0 1 9.2 5a7.3 7.3 0 1 0 9.8 9.8Z" />
+                  </svg>
+                  <span class="sr-only">{{ option.label }}</span>
+                </button>
+              </div>
             </div>
           </aside>
 
@@ -122,42 +109,17 @@
               <div>
                 <div class="section-kicker">{{ sectionMeta.kicker }}</div>
                 <h2 class="section-title">{{ sectionMeta.title }}</h2>
-                <p class="section-copy">{{ sectionMeta.copy }}</p>
               </div>
               <div class="main-actions">
                 <n-button secondary @click="refreshCurrentView">刷新当前视图</n-button>
                 <n-button tertiary @click="refreshAll">全量同步</n-button>
-                <n-button type="warning" ghost @click="openBanModal()">处理封禁</n-button>
                 <n-button quaternary @click="logout">退出</n-button>
               </div>
             </header>
 
             <n-spin :show="pageLoading">
               <div class="content-scroll">
-                <section class="section-stack section-top">
-                  <div class="status-strip">
-                    <article class="status-chip">
-                      <div class="capsule-label">当前状态</div>
-                      <div class="status-value">{{ currentViewHealth.label }}</div>
-                      <div class="status-note">{{ currentViewHealth.note }}</div>
-                    </article>
-                    <article class="status-chip">
-                      <div class="capsule-label">透明代理目标</div>
-                      <div class="status-value mono">{{ settingsModel.newapi_base_url || "未配置" }}</div>
-                      <div class="status-note">统一影响透明代理目标和 Guard 对 New API 的内部调用。</div>
-                    </article>
-                    <article class="status-chip">
-                      <div class="capsule-label">用户级 RPM</div>
-                      <div class="status-value">{{ settingsModel.rpm_limit || "—" }} / 分钟</div>
-                      <div class="status-note">请求头鉴权中的 key 会先映射到用户，再进行分钟级限速。</div>
-                    </article>
-                    <article class="status-chip">
-                      <div class="capsule-label">最近同步</div>
-                      <div class="status-value">{{ currentViewSyncedAt }}</div>
-                      <div class="status-note">只刷新当前视图时不会影响其它页的缓存状态。</div>
-                    </article>
-                  </div>
-
+                <section v-if="currentViewError" class="section-stack section-top">
                   <div v-if="currentViewError" class="alert-shell">
                     <n-alert type="error" title="当前视图最近一次同步失败" :show-icon="false">
                       {{ currentViewError }}
@@ -170,93 +132,68 @@
                     <article class="stat-card">
                       <div class="capsule-label">今日请求</div>
                       <div class="stat-value">{{ formatNumber(dashboard.today?.total_requests) }}</div>
-                      <div class="stat-foot">
-                        <span>来自透明代理链路</span>
-                        <n-tag size="small" :bordered="false">/v1/*</n-tag>
-                      </div>
                     </article>
                     <article class="stat-card">
                       <div class="capsule-label">当前封禁</div>
                       <div class="stat-value">{{ formatNumber(dashboard.active_bans) }}</div>
-                      <div class="stat-foot">
-                        <span>以 New API 状态为准</span>
-                        <n-tag size="small" type="warning" :bordered="false">status = 2</n-tag>
-                      </div>
                     </article>
                     <article class="stat-card">
                       <div class="capsule-label">白名单</div>
                       <div class="stat-value">{{ formatNumber(dashboard.whitelist_count) }}</div>
-                      <div class="stat-foot">
-                        <span>豁免 UA 与 RPM</span>
-                        <n-tag size="small" type="success" :bordered="false">Bypass</n-tag>
-                      </div>
                     </article>
                     <article class="stat-card">
                       <div class="capsule-label">新增封禁</div>
                       <div class="stat-value">{{ formatNumber(dashboard.today?.new_bans) }}</div>
-                      <div class="stat-foot">
-                        <span>记录在 Guard 上下文表</span>
-                        <n-tag size="small" type="error" :bordered="false">Risk</n-tag>
-                      </div>
                     </article>
                   </div>
 
-                  <div class="overview-grid">
+                  <div class="panel-grid dashboard-insight-grid">
+                    <article class="overview-block status-summary-card">
+                      <h3 class="block-title">当前状态</h3>
+                      <div class="status-summary-row">
+                        <span class="capsule-label">当前状态</span>
+                        <strong class="status-summary-value">{{ currentViewHealth.label }}</strong>
+                      </div>
+                      <div class="status-summary-row">
+                        <span class="capsule-label">透明代理目标</span>
+                        <strong class="status-summary-value mono">{{ settingsModel.newapi_base_url || "未配置" }}</strong>
+                      </div>
+                      <div class="status-summary-row">
+                        <span class="capsule-label">用户级 RPM</span>
+                        <strong class="status-summary-value">{{ settingsModel.rpm_limit || "—" }} / 分钟</strong>
+                      </div>
+                      <div class="status-summary-row">
+                        <span class="capsule-label">最近同步</span>
+                        <strong class="status-summary-value">{{ currentViewSyncedAt }}</strong>
+                      </div>
+                    </article>
+
                     <article class="overview-block">
                       <h3 class="block-title">今日风险面板</h3>
                       <div class="signal-line">
-                        <div>
-                          <div class="signal-name">UA 拦截次数</div>
-                          <div class="signal-note">累计触发不受信客户端识别</div>
-                        </div>
+                        <div class="signal-name">UA 拦截次数</div>
                         <div class="signal-value">{{ formatNumber(dashboard.today?.blocked_ua) }}</div>
                       </div>
                       <div class="signal-line">
-                        <div>
-                          <div class="signal-name">RPM 拦截次数</div>
-                          <div class="signal-note">按用户维度执行分钟级速率控制</div>
-                        </div>
+                        <div class="signal-name">RPM 拦截次数</div>
                         <div class="signal-value">{{ formatNumber(dashboard.today?.blocked_rpm) }}</div>
                       </div>
                       <div class="signal-line">
-                        <div>
-                          <div class="signal-name">签到完成次数</div>
-                          <div class="signal-note">额度补发由 Guard 接管并落日志</div>
-                        </div>
+                        <div class="signal-name">签到完成次数</div>
                         <div class="signal-value">{{ formatNumber(dashboard.today?.checkins) }}</div>
                       </div>
                       <div class="signal-line">
-                        <div>
-                          <div class="signal-name">新增用户</div>
-                          <div class="signal-note">由管理员创建或代理自动补录上下文</div>
-                        </div>
+                        <div class="signal-name">新增用户</div>
                         <div class="signal-value">{{ formatNumber(dashboard.today?.new_users) }}</div>
                       </div>
                     </article>
-
-                    <article class="rail-card">
-                      <h3 class="block-title">快速动作</h3>
-                      <div class="quick-grid">
-                        <n-button type="primary" @click="openCreateUserModal">创建用户</n-button>
-                        <n-button secondary @click="openView('users')">搜索用户</n-button>
-                        <n-button secondary @click="openView('settings')">调整设置</n-button>
-                        <n-button secondary @click="openView('bans')">查看封禁</n-button>
-                      </div>
-                      <n-divider />
-                      <div class="mini-grid">
-                        <div class="tiny-chip"><strong>{{ settingsModel.newapi_base_url || "未配置" }}</strong></div>
-                        <div class="tiny-chip"><strong>{{ settingsModel.public_base_url || "自动推断" }}</strong></div>
-                      </div>
-                      <p class="muted">当前控制台重点围绕用户级 RPM、Discord 准入、封禁上下文与公益站日常值守展开。</p>
-                    </article>
                   </div>
 
-                  <div class="panel-grid">
-                    <article class="overview-block">
+                  <div class="panel-grid dashboard-preview-grid">
+                    <article class="overview-block dashboard-preview-card">
                       <div class="panel-heading">
                         <div>
                           <h3 class="block-title">当前封禁预览</h3>
-                          <p class="muted">优先展示仍处于封禁状态的用户，帮助管理员快速判断是否需要解除。</p>
                         </div>
                         <n-button text @click="openView('bans')">进入封禁视图</n-button>
                       </div>
@@ -274,11 +211,10 @@
                       </div>
                     </article>
 
-                    <article class="overview-block">
+                    <article class="overview-block dashboard-preview-card">
                       <div class="panel-heading">
                         <div>
                           <h3 class="block-title">统计趋势预览</h3>
-                          <p class="muted">最近几天的请求量与风险事件，用于快速判断站点是否进入异常波动区间。</p>
                         </div>
                         <n-button text @click="openView('logs')">查看日志</n-button>
                       </div>
@@ -303,9 +239,10 @@
 
                 <section v-else-if="activeView === 'users'" class="section-stack">
                   <div class="filters">
-                    <n-input
-                      v-model:value="userSearchDraft"
-                      clearable
+                    <input
+                      v-model="userSearchDraft"
+                      class="app-input filter-input"
+                      type="text"
                       placeholder="搜索 newapi id、discord id、discord 名称或用户名"
                       @keyup.enter="applyUserSearch"
                     />
@@ -316,11 +253,13 @@
 
                   <div class="toolbar-split soft-card">
                     <div class="table-meta">
-                      {{ userQuery.search ? "当前关键字：" + userQuery.search : "当前未使用关键字过滤，可直接浏览最近同步到的用户页。" }}
-                      · 共 {{ formatNumber(userQuery.total || users.length) }} 条 · 第 {{ userQuery.page }} / {{ userPageCount }} 页
+                      {{ userQuery.search ? "关键字：" + userQuery.search + " · " : "" }}共 {{ formatNumber(userQuery.total || users.length) }} 条 · 第
+                      {{ userQuery.page }} / {{ userPageCount }} 页
                     </div>
                     <div class="table-actions">
-                      <n-select style="width: 132px" :value="userQuery.size" :options="userPageSizeOptions" @update:value="handleUserPageSizeChange" />
+                      <select class="app-select page-size-select" :value="userQuery.size" @change="handleUserPageSizeChange(Number($event.target.value))">
+                        <option v-for="option in userPageSizeOptions" :key="'user-size-' + option.value" :value="option.value">{{ option.label }}</option>
+                      </select>
                       <n-pagination :page="userQuery.page" :page-count="userPageCount" simple @update:page="handleUserPageChange" />
                     </div>
                   </div>
@@ -329,9 +268,8 @@
                     <div class="panel-heading">
                       <div>
                         <h3 class="block-title">用户列表</h3>
-                        <p class="muted">搜索时优先走 New API 实时用户数据，同时保留 Guard 记录的 Discord 绑定与白名单信息。</p>
                       </div>
-                      <n-tag size="large" :bordered="false">{{ users.length }} 条结果</n-tag>
+                      <n-tag size="large" :bordered="false">共 {{ formatNumber(userQuery.total || users.length) }} 条 · 本页 {{ users.length }} 条</n-tag>
                     </div>
 
                     <div class="table-shell" v-if="users.length">
@@ -396,7 +334,6 @@
                     <div class="panel-heading">
                       <div>
                         <h3 class="block-title">白名单用户</h3>
-                        <p class="muted">白名单用户会跳过 UA 与 RPM 检查，但仍会正常扣减额度。添加入口也保留在用户列表里，便于统一检索后再授权。</p>
                       </div>
                       <n-tag size="large" type="success" :bordered="false">{{ whitelist.length }} 人</n-tag>
                     </div>
@@ -420,8 +357,7 @@
                             </td>
                             <td>
                               <div class="cell-stack">
-                                <div class="cell-sub">白名单豁免 UA 与 RPM</div>
-                                <div class="cell-sub">推荐配合用户页的搜索与封禁状态一起判断</div>
+                                <div class="cell-sub">白名单</div>
                               </div>
                             </td>
                             <td class="cell-sub">{{ parseDate(item.created_at) }}</td>
@@ -443,29 +379,25 @@
                     <n-button :type="banMode === 'active' ? 'primary' : 'default'" @click="switchBanMode('active')">当前封禁</n-button>
                     <n-button :type="banMode === 'all' ? 'primary' : 'default'" @click="switchBanMode('all')">封禁历史</n-button>
                     <n-button type="warning" ghost @click="openBanModal()">新增封禁</n-button>
-                    <n-input v-model:value="banFilter" clearable placeholder="按用户、Discord、原因或 UA 过滤当前列表" class="ban-filter" />
+                    <input v-model="banFilter" class="app-input ban-filter" type="text" placeholder="按用户、Discord、原因或 UA 过滤当前列表" />
                   </div>
 
                   <div class="signal-grid">
                     <article class="signal-card">
                       <div class="capsule-label">当前封禁</div>
                       <div class="signal-value">{{ formatNumber(activeBans.length) }}</div>
-                      <div class="signal-note">直接以 New API 的 status=2 为准。</div>
                     </article>
                     <article class="signal-card">
                       <div class="capsule-label">含 Guard 上下文</div>
                       <div class="signal-value">{{ formatNumber(activeBansWithContext) }}</div>
-                      <div class="signal-note">可直接看到原因、UA、IP 与封禁时间。</div>
                     </article>
                     <article class="signal-card">
                       <div class="capsule-label">历史记录</div>
                       <div class="signal-value">{{ formatNumber(banHistory.length) }}</div>
-                      <div class="signal-note">用于审计和回溯，不代表当前状态。</div>
                     </article>
                     <article class="signal-card">
                       <div class="capsule-label">本地过滤</div>
                       <div class="signal-value">{{ banFilter || "未启用" }}</div>
-                      <div class="signal-note">只在当前视图内筛选，不影响后端查询口径。</div>
                     </article>
                   </div>
 
@@ -473,8 +405,6 @@
                     <div class="panel-heading">
                       <div>
                         <h3 class="block-title">{{ banMode === "active" ? "当前封禁列表" : "封禁历史记录" }}</h3>
-                        <p v-if="banMode === 'active'" class="muted">当前视图直接以 New API 的用户状态为准，再叠加 Guard 记录的原因、到期时间、最近违规 UA 等上下文。</p>
-                        <p v-else class="muted">历史视图保留 Guard 记录下来的封禁事件，用于审计时间线与追溯原因。</p>
                       </div>
                       <n-tag size="large" :bordered="false">{{ filteredBans.length }} / {{ displayedBans.length }} 条</n-tag>
                     </div>
@@ -509,7 +439,6 @@
                               <div class="cell-stack">
                                 <div class="cell-sub">封禁时间：{{ parseDate(item.created_at) }}</div>
                                 <div class="cell-sub">到期时间：{{ parseDate(item.expire_at) }}</div>
-                                <div class="cell-sub">{{ item.context_missing ? "直接来自 New API 状态" : "含 Guard 上下文" }}</div>
                               </div>
                             </td>
                             <td>
@@ -533,101 +462,159 @@
                 </section>
 
                 <section v-else-if="activeView === 'settings'" class="section-stack">
-                  <div class="settings-grid">
+                  <div class="settings-stack-page">
                     <article class="overview-block settings-stack">
                       <div>
                         <h3 class="block-title">代理与运维设置</h3>
-                        <p class="muted">这一组设置决定透明代理目标、管理员凭据、签到策略与访问频率控制，是整条 Guard 主链路的核心。</p>
                       </div>
                       <div class="compact-grid">
-                        <n-form-item label="New API 内网地址">
-                          <n-input v-model:value="settingsModel.newapi_base_url" placeholder="http://new-api:3000" />
-                        </n-form-item>
-                        <n-form-item label="New API 管理员令牌">
-                          <n-input v-model:value="settingsModel.newapi_admin_token" type="password" show-password-on="click" placeholder="用于用户与封禁操作" />
-                        </n-form-item>
-                        <n-form-item label="控制台公开地址">
-                          <n-input v-model:value="settingsModel.public_base_url" placeholder="可留空自动推断" />
-                        </n-form-item>
-                        <n-form-item label="管理员密码">
-                          <n-input v-model:value="settingsModel.admin_password" type="password" show-password-on="click" placeholder="控制台登录密码" />
-                        </n-form-item>
-                        <n-form-item label="用户级 RPM 限制">
-                          <n-input-number v-model:value="settingsModel.rpm_limit" :min="1" />
-                        </n-form-item>
-                        <n-form-item label="UA 违规封禁阈值">
-                          <n-input-number v-model:value="settingsModel.ua_ban_strikes" :min="1" />
-                        </n-form-item>
-                        <n-form-item label="签到补发额度">
-                          <n-input-number v-model:value="settingsModel.checkin_quota" :min="0" />
-                        </n-form-item>
-                        <n-form-item label="签到余额阈值">
-                          <n-input-number v-model:value="settingsModel.checkin_threshold" :min="0" />
-                        </n-form-item>
+                        <label class="field">
+                          <span class="field-label">New API 内网地址</span>
+                          <input v-model="settingsModel.newapi_base_url" class="app-input" type="text" placeholder="http://new-api:3000" />
+                        </label>
+                        <label class="field">
+                          <span class="field-label">New API 管理员令牌</span>
+                          <input v-model="settingsModel.newapi_admin_token" class="app-input" type="text" placeholder="用于用户与封禁操作" />
+                        </label>
+                        <label class="field">
+                          <span class="field-label">控制台公开地址</span>
+                          <input v-model="settingsModel.public_base_url" class="app-input" type="text" placeholder="可留空自动推断" />
+                        </label>
+                        <label class="field">
+                          <span class="field-label">管理员密码</span>
+                          <input v-model="settingsModel.admin_password" class="app-input" type="text" placeholder="控制台登录密码" />
+                        </label>
+                        <label class="field">
+                          <span class="field-label">用户级 RPM 限制</span>
+                          <input v-model.number="settingsModel.rpm_limit" class="app-input" type="number" min="1" />
+                        </label>
+                        <label class="field">
+                          <span class="field-label">UA 违规封禁阈值</span>
+                          <input v-model.number="settingsModel.ua_ban_strikes" class="app-input" type="number" min="1" />
+                        </label>
+                        <label class="field">
+                          <span class="field-label">签到补发额度</span>
+                          <input v-model.number="settingsModel.checkin_quota" class="app-input" type="number" min="0" />
+                        </label>
+                        <label class="field">
+                          <span class="field-label">签到余额阈值</span>
+                          <input v-model.number="settingsModel.checkin_threshold" class="app-input" type="number" min="0" />
+                        </label>
                       </div>
-                      <n-form-item label="允许的 UA 前缀">
-                        <n-input v-model:value="settingsText.allowed_ua" type="textarea" :autosize="{ minRows: 5, maxRows: 8 }" placeholder="每行一个前缀，例如 FLClash/" />
-                      </n-form-item>
+                      <div class="field field-full">
+                        <span class="field-label field-label-with-help">
+                          <span>允许的 UA 前缀</span>
+                          <button class="help-icon" type="button" aria-label="查看允许的 UA 前缀说明" @click="openHelp('allowed_ua')">?</button>
+                        </span>
+                        <div class="settings-visual-stack">
+                          <p class="field-caption">通过条目维护允许前缀，保存时仍会写成字符串数组。</p>
+
+                          <div v-if="allowedUADraft.items.length" class="list-editor-stack">
+                            <div v-for="(item, index) in allowedUADraft.items" :key="'allowed-ua-' + index" class="list-editor-row soft-card">
+                              <template v-if="allowedUADraft.editIndex === index">
+                                <input
+                                  v-model="allowedUADraft.editValue"
+                                  class="app-input list-editor-input mono"
+                                  type="text"
+                                  placeholder="例如 FLClash/"
+                                  @keyup.enter="saveAllowedUAEdit"
+                                />
+                                <div class="action-row">
+                                  <n-button size="small" type="primary" @click="saveAllowedUAEdit">保存</n-button>
+                                  <n-button size="small" tertiary @click="cancelAllowedUAEdit">取消</n-button>
+                                </div>
+                              </template>
+                              <template v-else>
+                                <div class="list-editor-content">
+                                  <div class="cell-title mono">{{ item }}</div>
+                                  <div class="field-caption">前缀 {{ index + 1 }}</div>
+                                </div>
+                                <div class="action-row">
+                                  <n-button size="small" secondary @click="startAllowedUAEdit(index)">编辑</n-button>
+                                  <n-button size="small" type="warning" ghost @click="removeAllowedUAItem(index)">删除</n-button>
+                                </div>
+                              </template>
+                            </div>
+                          </div>
+                          <div v-else class="section-note">当前没有配置允许的 UA 前缀。留空时表示不启用 UA 限制。</div>
+
+                          <div class="list-editor-create">
+                            <input
+                              v-model="allowedUADraft.pending"
+                              class="app-input list-editor-input"
+                              type="text"
+                              placeholder="新增一个允许前缀，例如 FLClash/"
+                              @keyup.enter="addAllowedUAItem"
+                            />
+                            <n-button secondary @click="addAllowedUAItem">新增前缀</n-button>
+                          </div>
+                        </div>
+                      </div>
                     </article>
 
                     <article class="overview-block settings-stack">
                       <div>
                         <h3 class="block-title">OAuth 与 Discord 准入</h3>
-                        <p class="muted">这里控制 Guard 作为 OAuth Provider 暴露给 New API 的能力，同时维护 Discord 准入规则和相关凭据。</p>
                       </div>
                       <div class="compact-grid">
-                        <n-form-item label="OAuth Client ID">
-                          <n-input v-model:value="settingsModel.oauth_client_id" />
-                        </n-form-item>
-                        <n-form-item label="OAuth Client Secret">
-                          <n-input v-model:value="settingsModel.oauth_client_secret" type="password" show-password-on="click" />
-                        </n-form-item>
-                        <n-form-item label="Provider Slug">
-                          <n-input v-model:value="settingsModel.oauth_provider_slug" />
-                        </n-form-item>
-                        <n-form-item label="Discord Client ID">
-                          <n-input v-model:value="settingsModel.discord_client_id" />
-                        </n-form-item>
-                        <n-form-item label="Discord Client Secret">
-                          <n-input v-model:value="settingsModel.discord_client_secret" type="password" show-password-on="click" />
-                        </n-form-item>
-                        <n-form-item label="Discord Guild ID">
-                          <n-input v-model:value="settingsModel.discord_guild_id" />
-                        </n-form-item>
-                        <n-form-item label="State TTL（秒）">
-                          <n-input-number v-model:value="settingsModel.oauth_state_ttl_seconds" :min="60" />
-                        </n-form-item>
-                        <n-form-item label="Code TTL（秒）">
-                          <n-input-number v-model:value="settingsModel.oauth_code_ttl_seconds" :min="60" />
-                        </n-form-item>
-                        <n-form-item label="Token TTL（秒）">
-                          <n-input-number v-model:value="settingsModel.oauth_token_ttl_seconds" :min="60" />
-                        </n-form-item>
+                        <label class="field">
+                          <span class="field-label">OAuth Client ID</span>
+                          <input v-model="settingsModel.oauth_client_id" class="app-input" type="text" />
+                        </label>
+                        <label class="field">
+                          <span class="field-label">OAuth Client Secret</span>
+                          <input v-model="settingsModel.oauth_client_secret" class="app-input" type="text" autocomplete="off" />
+                        </label>
+                        <label class="field">
+                          <span class="field-label">Provider Slug</span>
+                          <input v-model="settingsModel.oauth_provider_slug" class="app-input" type="text" />
+                        </label>
+                        <label class="field">
+                          <span class="field-label">Discord Client ID</span>
+                          <input v-model="settingsModel.discord_client_id" class="app-input" type="text" />
+                        </label>
+                        <label class="field">
+                          <span class="field-label">Discord Client Secret</span>
+                          <input v-model="settingsModel.discord_client_secret" class="app-input" type="text" autocomplete="off" />
+                        </label>
+                        <label class="field">
+                          <span class="field-label">Discord Guild ID</span>
+                          <input v-model="settingsModel.discord_guild_id" class="app-input" type="text" />
+                        </label>
+                        <label class="field">
+                          <span class="field-label">State TTL（秒）</span>
+                          <input v-model.number="settingsModel.oauth_state_ttl_seconds" class="app-input" type="number" min="60" />
+                        </label>
+                        <label class="field">
+                          <span class="field-label">Code TTL（秒）</span>
+                          <input v-model.number="settingsModel.oauth_code_ttl_seconds" class="app-input" type="number" min="60" />
+                        </label>
+                        <label class="field">
+                          <span class="field-label">Token TTL（秒）</span>
+                          <input v-model.number="settingsModel.oauth_token_ttl_seconds" class="app-input" type="number" min="60" />
+                        </label>
                       </div>
-                      <n-form-item label="Discord OAuth Scopes">
-                        <n-input v-model:value="settingsText.discord_oauth_scopes" type="textarea" :autosize="{ minRows: 3, maxRows: 5 }" placeholder="每行一个 scope，例如 identify" />
-                      </n-form-item>
-                      <n-form-item label="Discord 准入规则 JSON">
-                        <n-input v-model:value="settingsText.discord_access_policy" type="textarea" :autosize="{ minRows: 10, maxRows: 18 }" placeholder='{"logic":"and","conditions":[],"groups":[]}' />
-                      </n-form-item>
-                      <div class="field-caption">准入规则支持嵌套条件组。建议保存 guild_id 与 role_id，不依赖名称，避免 Discord 改名造成规则失效。</div>
+                      <div class="field field-full">
+                        <span class="field-label">Discord OAuth Scopes</span>
+                        <textarea v-model="settingsText.discord_oauth_scopes" class="app-textarea" rows="4" placeholder="每行一个 scope，例如 identify"></textarea>
+                      </div>
+                      <div class="field field-full">
+                        <span class="field-label field-label-with-help">
+                          <span>Discord 准入规则</span>
+                          <button class="help-icon" type="button" aria-label="查看 Discord 准入规则说明" @click="openHelp('discord_access_policy')">?</button>
+                        </span>
+                        <div class="settings-visual-stack">
+                          <p class="field-caption">在界面里维护条件和规则组，保存时仍会写回后端当前使用的 JSON 结构。</p>
+                          <PolicyGroupEditor :group="discordAccessPolicyDraft" root />
+                        </div>
+                      </div>
                     </article>
                   </div>
 
-                  <article class="overview-block">
-                    <div class="panel-heading">
-                      <div>
-                        <h3 class="block-title">设置说明</h3>
-                        <p class="muted">配置保存后会立即写入 Guard 本地数据库。代理目标、OAuth 凭据、签到阈值与准入规则都会在运行中生效。</p>
-                      </div>
-                      <div class="action-row">
-                        <n-button secondary @click="resetSettingsDraft">重置草稿</n-button>
-                        <n-button type="primary" @click="saveSettings">保存设置</n-button>
-                      </div>
-                    </div>
-                    <div class="section-note">
-                      为避免误操作，建议先确认 <span class="mono">newapi_base_url</span>、<span class="mono">newapi_admin_token</span> 与
-                      <span class="mono">public_base_url</span> 三项配置可用，再修改 Discord 准入或 OAuth 相关字段。
+                  <article class="overview-block settings-actions">
+                    <div class="action-row">
+                      <n-button secondary @click="resetSettingsDraft">重置草稿</n-button>
+                      <n-button type="primary" @click="saveSettings">保存设置</n-button>
                     </div>
                   </article>
                 </section>
@@ -637,7 +624,6 @@
                     <div class="panel-heading">
                       <div>
                         <h3 class="block-title">运维日志</h3>
-                        <p class="muted">把封禁、签到和每日统计拆成三个观察面，便于管理员在同一页里做审计与趋势判断。</p>
                       </div>
                       <n-button secondary @click="refreshLogsOnly">刷新日志</n-button>
                     </div>
@@ -691,7 +677,7 @@
 
                       <n-tab-pane name="checkins" tab="签到日志">
                         <div class="filters">
-                          <n-input v-model:value="checkinFilter" clearable placeholder="按 newapi 用户 ID 过滤" @keyup.enter="loadCheckinLogsAction" />
+                          <input v-model="checkinFilter" class="app-input filter-input" type="text" placeholder="按 newapi 用户 ID 过滤" @keyup.enter="loadCheckinLogsAction" />
                           <n-button secondary @click="loadCheckinLogsAction">应用过滤</n-button>
                         </div>
                         <div class="table-shell" v-if="checkinLogs.length">
@@ -768,28 +754,37 @@
             <n-button :type="createUserModal.form.mode === 'discord' ? 'primary' : 'default'" @click="createUserModal.form.mode = 'discord'">Discord 绑定</n-button>
           </div>
           <div class="compact-grid" v-if="createUserModal.form.mode === 'password'">
-            <n-form-item label="用户名">
-              <n-input v-model:value="createUserModal.form.username" placeholder="例如 tom" />
-            </n-form-item>
-            <n-form-item label="密码">
-              <n-input v-model:value="createUserModal.form.password" type="password" show-password-on="click" />
-            </n-form-item>
+            <label class="field">
+              <span class="field-label">用户名</span>
+              <input v-model="createUserModal.form.username" class="app-input" type="text" placeholder="例如 tom" />
+            </label>
+            <label class="field">
+              <span class="field-label">密码</span>
+              <input v-model="createUserModal.form.password" class="app-input" type="password" />
+            </label>
           </div>
           <div class="compact-grid" v-else>
-            <n-form-item label="Discord ID">
-              <n-input v-model:value="createUserModal.form.discord_id" placeholder="例如 298374928374" />
-            </n-form-item>
-            <n-form-item label="Discord 名称">
-              <n-input v-model:value="createUserModal.form.discord_name" placeholder="例如 Tom#1234" />
-            </n-form-item>
+            <label class="field">
+              <span class="field-label">Discord ID</span>
+              <input v-model="createUserModal.form.discord_id" class="app-input" type="text" placeholder="例如 298374928374" />
+            </label>
+            <label class="field">
+              <span class="field-label">Discord 名称</span>
+              <input v-model="createUserModal.form.discord_name" class="app-input" type="text" placeholder="例如 Tom#1234" />
+            </label>
           </div>
           <div class="compact-grid">
-            <n-form-item label="初始额度">
-              <n-input-number v-model:value="createUserModal.form.initial_quota" :min="0" />
-            </n-form-item>
-            <n-form-item label="是否加入白名单">
-              <n-switch v-model:value="createUserModal.form.is_whitelist" />
-            </n-form-item>
+            <label class="field">
+              <span class="field-label">初始额度</span>
+              <input v-model.number="createUserModal.form.initial_quota" class="app-input" type="number" min="0" />
+            </label>
+            <label class="field checkbox-field">
+              <span class="field-label">是否加入白名单</span>
+              <span class="checkbox-row">
+                <input v-model="createUserModal.form.is_whitelist" class="app-checkbox" type="checkbox" />
+                <span class="checkbox-text">{{ createUserModal.form.is_whitelist ? "是" : "否" }}</span>
+              </span>
+            </label>
           </div>
           <div class="action-row">
             <n-button secondary @click="createUserModal.show = false">取消</n-button>
@@ -800,30 +795,51 @@
 
       <n-modal v-model:show="banModal.show" preset="card" style="width:min(760px, 92vw)" title="处理封禁">
         <div class="settings-stack">
-          <div class="section-note">
-            你可以直接输入 <span class="mono">newapi 用户 ID</span>、<span class="mono">Discord ID</span>，或者让表格中的行操作自动带入当前用户。
-          </div>
           <div class="compact-grid">
-            <n-form-item label="统一用户标识">
-              <n-input v-model:value="banModal.form.user_ref" placeholder="例如 123 或 298374928374" />
-            </n-form-item>
-            <n-form-item label="Discord ID（可选）">
-              <n-input v-model:value="banModal.form.discord_id" placeholder="优先用于 Discord 映射查找" />
-            </n-form-item>
-            <n-form-item label="newapi 用户 ID（可选）">
-              <n-input-number v-model:value="banModal.form.newapi_user_id" :min="1" />
-            </n-form-item>
-            <n-form-item label="封禁时长">
-              <n-select v-model:value="banModal.form.duration" :options="banDurationOptions" />
-            </n-form-item>
+            <label class="field">
+              <span class="field-label">统一用户标识</span>
+              <input v-model="banModal.form.user_ref" class="app-input" type="text" placeholder="例如 123 或 298374928374" />
+            </label>
+            <label class="field">
+              <span class="field-label">Discord ID（可选）</span>
+              <input v-model="banModal.form.discord_id" class="app-input" type="text" placeholder="优先用于 Discord 映射查找" />
+            </label>
+            <label class="field">
+              <span class="field-label">newapi 用户 ID（可选）</span>
+              <input v-model.number="banModal.form.newapi_user_id" class="app-input" type="number" min="1" />
+            </label>
+            <label class="field">
+              <span class="field-label">封禁时长</span>
+              <select v-model="banModal.form.duration" class="app-select">
+                <option v-for="option in banDurationOptions" :key="'ban-duration-' + option.value" :value="option.value">{{ option.label }}</option>
+              </select>
+            </label>
           </div>
-          <n-form-item label="封禁原因">
-            <n-input v-model:value="banModal.form.reason" type="textarea" :autosize="{ minRows: 4, maxRows: 7 }" placeholder="记录操作原因，便于后续审计和交接" />
-          </n-form-item>
+          <label class="field field-full">
+            <span class="field-label">封禁原因</span>
+            <textarea v-model="banModal.form.reason" class="app-textarea" rows="5" placeholder="记录操作原因"></textarea>
+          </label>
           <div class="action-row">
             <n-button secondary @click="banModal.show = false">取消</n-button>
             <n-button type="warning" :loading="banModal.loading" @click="submitBan">确认封禁</n-button>
           </div>
+        </div>
+      </n-modal>
+
+      <n-modal v-model:show="helpModal.show" preset="card" style="width:min(720px, 92vw)" :title="helpContent.title">
+        <div class="help-stack">
+          <section class="help-block">
+            <div class="help-label">解释</div>
+            <p class="help-text">{{ helpContent.explain }}</p>
+          </section>
+          <section class="help-block">
+            <div class="help-label">简单写法</div>
+            <p class="help-text">{{ helpContent.howto }}</p>
+          </section>
+          <section class="help-block">
+            <div class="help-label">示例</div>
+            <pre class="help-code">{{ helpContent.example }}</pre>
+          </section>
         </div>
       </n-modal>
     </template>
@@ -831,42 +847,62 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { createDiscreteApi, darkTheme } from "naive-ui";
+import PolicyGroupEditor from "./components/PolicyGroupEditor.vue";
 
-const themeOverrides = {
-  common: {
-    primaryColor: "oklch(0.78 0.124 174)",
-    primaryColorHover: "oklch(0.83 0.11 174)",
-    primaryColorPressed: "oklch(0.72 0.11 174)",
-    infoColor: "oklch(0.78 0.124 174)",
-    successColor: "oklch(0.76 0.12 160)",
-    warningColor: "oklch(0.8 0.12 78)",
-    errorColor: "oklch(0.7 0.16 27)",
-    bodyColor: "oklch(0.19 0.02 220)",
-    cardColor: "oklch(0.235 0.022 220)",
-    modalColor: "oklch(0.235 0.022 220)",
-    popoverColor: "oklch(0.235 0.022 220)",
-    borderColor: "rgba(255,255,255,0.08)",
-    textColorBase: "oklch(0.92 0.01 220)",
-    textColor2: "oklch(0.75 0.014 220)",
-    fontFamily: "\"Noto Sans SC\", \"Segoe UI\", sans-serif",
-    fontFamilyMono: "\"Chakra Petch\", sans-serif"
-  },
-  Button: {
-    borderRadiusMedium: "14px",
-    borderRadiusSmall: "12px"
-  },
-  Input: {
-    color: "rgba(255,255,255,0.02)",
-    borderRadius: "14px"
-  }
-};
+const themeOptions = [
+  { value: "system", label: "自动" },
+  { value: "light", label: "日间" },
+  { value: "dark", label: "夜间" }
+];
+
+const storedThemeMode = localStorage.getItem("guard_theme_mode");
+const themeMode = ref(themeOptions.some((option) => option.value === storedThemeMode) ? storedThemeMode : "system");
+const systemTheme = ref("dark");
+const resolvedTheme = computed(() => (themeMode.value === "system" ? systemTheme.value : themeMode.value));
+const currentThemeLabel = computed(() => {
+  const currentThemeOption = themeOptions.find((option) => option.value === themeMode.value);
+  return currentThemeOption ? currentThemeOption.label : themeOptions[0].label;
+});
+const naiveTheme = computed(() => (resolvedTheme.value === "dark" ? darkTheme : null));
+
+const themeOverrides = computed(() => {
+  const isDark = resolvedTheme.value === "dark";
+  return {
+    common: {
+      primaryColor: "oklch(0.78 0.124 174)",
+      primaryColorHover: "oklch(0.83 0.11 174)",
+      primaryColorPressed: "oklch(0.72 0.11 174)",
+      infoColor: "oklch(0.78 0.124 174)",
+      successColor: "oklch(0.76 0.12 160)",
+      warningColor: "oklch(0.8 0.12 78)",
+      errorColor: "oklch(0.7 0.16 27)",
+      bodyColor: isDark ? "oklch(0.19 0.02 220)" : "oklch(0.985 0.008 210)",
+      cardColor: isDark ? "oklch(0.235 0.022 220)" : "oklch(0.998 0.006 210)",
+      modalColor: isDark ? "oklch(0.235 0.022 220)" : "oklch(0.998 0.006 210)",
+      popoverColor: isDark ? "oklch(0.235 0.022 220)" : "oklch(0.998 0.006 210)",
+      borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(27,52,67,0.12)",
+      textColorBase: isDark ? "oklch(0.92 0.01 220)" : "oklch(0.25 0.018 220)",
+      textColor2: isDark ? "oklch(0.75 0.014 220)" : "oklch(0.48 0.016 220)",
+      fontFamily: "\"Noto Sans SC\", \"Segoe UI\", sans-serif",
+      fontFamilyMono: "\"Chakra Petch\", sans-serif"
+    },
+    Button: {
+      borderRadiusMedium: "14px",
+      borderRadiusSmall: "12px"
+    },
+    Input: {
+      color: isDark ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.78)",
+      borderRadius: "14px"
+    }
+  };
+});
 
 const { message, dialog } = createDiscreteApi(["message", "dialog"], {
   configProviderProps: {
-    theme: darkTheme,
-    themeOverrides
+    theme: naiveTheme.value,
+    themeOverrides: themeOverrides.value
   }
 });
 
@@ -924,6 +960,7 @@ const login = reactive({
 const authLoading = ref(false);
 const pageLoading = ref(false);
 const activeView = ref("dashboard");
+const sidebarCollapsed = ref(false);
 const logView = ref("bans");
 const banMode = ref("active");
 const banFilter = ref("");
@@ -979,9 +1016,47 @@ const statsLogs = ref([]);
 
 const settingsModel = reactive({});
 const settingsText = reactive({
-  allowed_ua: "",
-  discord_oauth_scopes: "",
-  discord_access_policy: ""
+  discord_oauth_scopes: ""
+});
+const allowedUADraft = reactive({
+  items: [],
+  pending: "",
+  editIndex: -1,
+  editValue: ""
+});
+const discordAccessPolicyDraft = ref(createPolicyGroup());
+
+const helpTopics = {
+  allowed_ua: {
+    title: "允许的 UA 前缀",
+    explain:
+      "后端会把这里当成字符串数组处理，逐条用前缀匹配请求头里的 User-Agent。这里留空时，后端会直接放行全部 UA，不启用 UA 限制。",
+    howto:
+      "在界面里逐条新增、编辑或删除前缀即可，不需要自己写数组格式。保存时前端会自动整理成后端需要的字符串数组。",
+    example: `条目示例
+FLClash/
+Shadowrocket/
+ClashMeta/
+OpenClash/`
+  },
+  discord_access_policy: {
+    title: "Discord 准入规则",
+    explain:
+      "后端会把这里按 JSON 对象解析，并递归执行 logic / conditions / groups。当前代码只支持两种条件：field=\"guild_id\" 配 op=\"eq\"，以及 field=\"roles\" 配 op=\"contains\"。其中 guild_id 对应当前 Discord 服务器 ID，roles 对应 Discord 返回的成员角色 ID 列表，不认角色名称。",
+    howto:
+      "直接在界面里选择 AND / OR、增加条件或嵌套规则组即可。想要求“必须在某个服务器，并且拥有 A 或 B 角色之一”，就把根规则设成 AND，再新增一个 OR 子规则组来放多个角色条件。空规则会被后端视为全部放行。",
+    example: `示例结构
+根规则：AND
+条件 1：服务器 ID = 123456789012345678
+子规则组：OR
+- 角色 ID = 987654321000000001
+- 角色 ID = 987654321000000002`
+  }
+};
+
+const helpModal = reactive({
+  show: false,
+  key: "allowed_ua"
 });
 
 const createUserModal = reactive({
@@ -1026,6 +1101,7 @@ const sectionMeta = computed(() => sectionMap[activeView.value]);
 const displayedBans = computed(() => (banMode.value === "active" ? activeBans.value : banHistory.value));
 const userPageCount = computed(() => Math.max(1, Math.ceil((Number(userQuery.total) || 0) / userQuery.size)));
 const activeBansWithContext = computed(() => activeBans.value.filter((item) => !item.context_missing).length);
+const helpContent = computed(() => helpTopics[helpModal.key] || helpTopics.allowed_ua);
 const currentViewError = computed(() => viewState[activeView.value].error);
 const currentViewSyncedAt = computed(() => {
   const syncedAt = viewState[activeView.value].syncedAt;
@@ -1069,8 +1145,22 @@ const filteredBans = computed(() => {
   );
 });
 
+let colorSchemeMediaQuery;
+let removeColorSchemeListener;
+
 function clone(value, fallback) {
   return JSON.parse(JSON.stringify(value ?? fallback));
+}
+
+function applyResolvedTheme(theme) {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme;
+}
+
+function openHelp(key) {
+  helpModal.key = key;
+  helpModal.show = true;
 }
 
 function parseDate(value) {
@@ -1091,15 +1181,165 @@ function formatMaybeArray(value) {
   return Array.isArray(value) ? value.join("\n") : "";
 }
 
-function formatMaybeJson(value) {
+function createLocalId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `guard-${Math.random().toString(16).slice(2)}-${Date.now()}`;
+}
+
+function createPolicyCondition(field = "guild_id", value = "") {
+  const normalizedField = field === "roles" ? "roles" : "guild_id";
+  return {
+    id: createLocalId(),
+    field: normalizedField,
+    op: normalizedField === "roles" ? "contains" : "eq",
+    value: String(value ?? "")
+  };
+}
+
+function normalizePolicyCondition(condition) {
+  if (!condition || typeof condition !== "object") {
+    return null;
+  }
+  return createPolicyCondition(condition.field, condition.value);
+}
+
+function createPolicyGroup(group = {}) {
+  return {
+    id: createLocalId(),
+    logic: String(group.logic || "").toLowerCase() === "or" ? "or" : "and",
+    conditions: Array.isArray(group.conditions) ? group.conditions.map(normalizePolicyCondition).filter(Boolean) : [],
+    groups: Array.isArray(group.groups) ? group.groups.map((item) => createPolicyGroup(item)) : []
+  };
+}
+
+function parsePolicyValue(value) {
+  if (!value) {
+    return createPolicyGroup();
+  }
   if (typeof value === "string") {
     try {
-      return JSON.stringify(JSON.parse(value), null, 2);
+      return createPolicyGroup(JSON.parse(value));
     } catch {
-      return value;
+      return createPolicyGroup();
     }
   }
-  return JSON.stringify(value ?? {}, null, 2);
+  if (typeof value === "object") {
+    return createPolicyGroup(value);
+  }
+  return createPolicyGroup();
+}
+
+function serializePolicyGroup(group) {
+  const conditions = (group.conditions || [])
+    .map((condition) => ({
+      field: condition.field === "roles" ? "roles" : "guild_id",
+      op: condition.field === "roles" ? "contains" : "eq",
+      value: String(condition.value || "").trim()
+    }))
+    .filter((condition) => condition.value);
+
+  const groups = (group.groups || [])
+    .map((item) => serializePolicyGroup(item))
+    .filter((item) => item.conditions.length || item.groups.length);
+
+  return {
+    logic: group.logic === "or" ? "or" : "and",
+    conditions,
+    groups
+  };
+}
+
+function validatePolicyGroup(group, path = "根规则") {
+  for (const [index, condition] of (group.conditions || []).entries()) {
+    if (!String(condition.value || "").trim()) {
+      throw new Error(`${path} 的第 ${index + 1} 个条件还没有填写值`);
+    }
+  }
+  for (const [index, child] of (group.groups || []).entries()) {
+    validatePolicyGroup(child, `${path} > 子组 ${index + 1}`);
+  }
+}
+
+function normalizeStringList(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || "").trim()).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item || "").trim()).filter(Boolean);
+      }
+    } catch {
+      return value
+        .split(/\n+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
+}
+
+function syncAllowedUADraft(value) {
+  const items = normalizeStringList(value);
+  allowedUADraft.items.splice(0, allowedUADraft.items.length, ...items);
+  allowedUADraft.pending = "";
+  allowedUADraft.editIndex = -1;
+  allowedUADraft.editValue = "";
+}
+
+function syncDiscordAccessPolicyDraft(value) {
+  discordAccessPolicyDraft.value = parsePolicyValue(value);
+}
+
+function addAllowedUAItem() {
+  const nextValue = allowedUADraft.pending.trim();
+  if (!nextValue) {
+    message.warning("请先输入一个 UA 前缀");
+    return;
+  }
+  if (allowedUADraft.items.includes(nextValue)) {
+    message.info("这个 UA 前缀已经存在");
+    return;
+  }
+  allowedUADraft.items.push(nextValue);
+  allowedUADraft.pending = "";
+}
+
+function startAllowedUAEdit(index) {
+  allowedUADraft.editIndex = index;
+  allowedUADraft.editValue = allowedUADraft.items[index] || "";
+}
+
+function cancelAllowedUAEdit() {
+  allowedUADraft.editIndex = -1;
+  allowedUADraft.editValue = "";
+}
+
+function saveAllowedUAEdit() {
+  const nextValue = allowedUADraft.editValue.trim();
+  if (allowedUADraft.editIndex < 0) return;
+  if (!nextValue) {
+    message.warning("UA 前缀不能为空");
+    return;
+  }
+  if (allowedUADraft.items.some((item, index) => index !== allowedUADraft.editIndex && item === nextValue)) {
+    message.info("这个 UA 前缀已经存在");
+    return;
+  }
+  allowedUADraft.items.splice(allowedUADraft.editIndex, 1, nextValue);
+  cancelAllowedUAEdit();
+}
+
+function removeAllowedUAItem(index) {
+  allowedUADraft.items.splice(index, 1);
+  if (allowedUADraft.editIndex === index) {
+    cancelAllowedUAEdit();
+  } else if (allowedUADraft.editIndex > index) {
+    allowedUADraft.editIndex -= 1;
+  }
 }
 
 function navCount(key) {
@@ -1222,9 +1462,9 @@ async function fetchSettings() {
   const data = await request("/guard/api/settings");
   const payload = data.data || {};
   Object.assign(settingsModel, clone(payload, {}));
-  settingsText.allowed_ua = formatMaybeArray(payload.allowed_ua);
+  syncAllowedUADraft(payload.allowed_ua);
   settingsText.discord_oauth_scopes = formatMaybeArray(payload.discord_oauth_scopes);
-  settingsText.discord_access_policy = formatMaybeJson(payload.discord_access_policy);
+  syncDiscordAccessPolicyDraft(payload.discord_access_policy);
 }
 
 async function fetchLogs() {
@@ -1491,15 +1731,13 @@ async function quickUnban(item) {
 async function saveSettings() {
   try {
     const payload = clone(settingsModel, {});
-    payload.allowed_ua = settingsText.allowed_ua
-      .split(/\n+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
+    validatePolicyGroup(discordAccessPolicyDraft.value);
+    payload.allowed_ua = [...allowedUADraft.items];
     payload.discord_oauth_scopes = settingsText.discord_oauth_scopes
       .split(/\n+/)
       .map((item) => item.trim())
       .filter(Boolean);
-    payload.discord_access_policy = JSON.parse(settingsText.discord_access_policy || "{}");
+    payload.discord_access_policy = serializePolicyGroup(discordAccessPolicyDraft.value);
 
     await performPageTask(async () => {
       await request("/guard/api/settings", { method: "PUT", body: payload });
@@ -1511,9 +1749,9 @@ async function saveSettings() {
 }
 
 function resetSettingsDraft() {
-  settingsText.allowed_ua = formatMaybeArray(settingsModel.allowed_ua);
+  syncAllowedUADraft(settingsModel.allowed_ua);
   settingsText.discord_oauth_scopes = formatMaybeArray(settingsModel.discord_oauth_scopes);
-  settingsText.discord_access_policy = formatMaybeJson(settingsModel.discord_access_policy);
+  syncDiscordAccessPolicyDraft(settingsModel.discord_access_policy);
   message.info("已恢复为当前已加载配置");
 }
 
@@ -1526,6 +1764,18 @@ function trendWidth(value) {
   return `${Math.max(8, Math.round((Number(value || 0) / max) * 100))}%`;
 }
 
+watch(themeMode, (mode) => {
+  localStorage.setItem("guard_theme_mode", mode);
+});
+
+watch(
+  resolvedTheme,
+  (theme) => {
+    applyResolvedTheme(theme);
+  },
+  { immediate: true }
+);
+
 watch(activeView, (view) => {
   ensureView(view).catch((error) => {
     message.error(error.message || "视图加载失败");
@@ -1533,6 +1783,21 @@ watch(activeView, (view) => {
 });
 
 onMounted(async () => {
+  if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+    colorSchemeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const syncSystemTheme = () => {
+      systemTheme.value = colorSchemeMediaQuery.matches ? "dark" : "light";
+    };
+    syncSystemTheme();
+    if (typeof colorSchemeMediaQuery.addEventListener === "function") {
+      colorSchemeMediaQuery.addEventListener("change", syncSystemTheme);
+      removeColorSchemeListener = () => colorSchemeMediaQuery.removeEventListener("change", syncSystemTheme);
+    } else if (typeof colorSchemeMediaQuery.addListener === "function") {
+      colorSchemeMediaQuery.addListener(syncSystemTheme);
+      removeColorSchemeListener = () => colorSchemeMediaQuery.removeListener(syncSystemTheme);
+    }
+  }
+
   userSearchDraft.value = userQuery.search;
   if (auth.token) {
     try {
@@ -1541,5 +1806,9 @@ onMounted(async () => {
       await logout(true);
     }
   }
+});
+
+onBeforeUnmount(() => {
+  removeColorSchemeListener?.();
 });
 </script>
